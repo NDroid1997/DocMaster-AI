@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <files-path name="documents" path="documents/" />
+    <files-path name="scans" path="scans/" />
+    <files-path name="conversions" path="conversions/" />
+    <files-path name="pdf_output" path="pdf_output/" />
+    <cache-path name="temp" path="scan_temp/" />
+    <cache-path name="cache" path="." />
+</paths>
