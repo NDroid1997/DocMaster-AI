@@ -1,5 +1,6 @@
 package com.ndroid.docmasterai.ui.screens.filemanager
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,15 +13,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.ndroid.docmasterai.data.local.entity.DocumentEntity
 import com.ndroid.docmasterai.ui.theme.*
+import com.ndroid.docmasterai.utils.GlobalViewModel
 import java.text.SimpleDateFormat
 import java.util.*
-
 enum class FileTab(val title: String) {
     ALL("All"), RECENT("Recent"), FAVORITES("Favorites"), TRASH("Trash")
 }
@@ -29,12 +33,14 @@ enum class FileTab(val title: String) {
 @Composable
 fun FileManagerScreen(
     onNavigateBack: () -> Unit,
+    onItemClick: (documentId: String, images: List<Uri>, pdf: Uri?) -> Unit,
     viewModel: FileManagerViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableStateOf(FileTab.ALL) }
     var searchQuery by remember { mutableStateOf("") }
     var isSearchActive by remember { mutableStateOf(false) }
+    val globalViewModel = hiltViewModel<GlobalViewModel>()
 
     val displayDocs = when (selectedTab) {
         FileTab.ALL -> uiState.allDocuments
@@ -188,6 +194,10 @@ fun FileManagerScreen(
                                 }
                             },
                             onRestore = { viewModel.restoreDocument(doc.id) },
+                            onCardClick = {
+                                // Load this document's page images and hand them to the editor.
+                                globalViewModel.prepareForEditing(doc, onItemClick)
+                            }
                         )
                     }
                 }
@@ -203,11 +213,13 @@ private fun FileListItem(
     onFavoriteToggle: () -> Unit,
     onDelete: () -> Unit,
     onRestore: () -> Unit,
+    onCardClick: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        onClick = onCardClick
     ) {
         Row(
             modifier = Modifier
@@ -225,18 +237,36 @@ private fun FileListItem(
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    imageVector = when (document.fileType) {
-                        "pdf" -> Icons.Filled.PictureAsPdf
-                        "jpg", "jpeg", "png", "webp" -> Icons.Filled.Image
-                        else -> Icons.Filled.InsertDriveFile
-                    },
-                    contentDescription = null,
-                    tint = when (document.fileType) {
-                        "pdf" -> ErrorDark
-                        else -> GradientStart
-                    },
-                )
+                if (document.thumbnailPath != null) {
+                    AsyncImage(
+                        model = java.io.File(document.thumbnailPath),
+                        contentDescription = document.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Icon(
+                        imageVector = when (document.fileType) {
+                            "pdf" -> Icons.Filled.PictureAsPdf
+                            "jpg", "jpeg", "png", "webp" -> Icons.Filled.Image
+                            else -> Icons.Filled.InsertDriveFile
+                        },
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+//                Icon(
+//                    imageVector = when (document.fileType) {
+//                        "pdf" -> Icons.Filled.PictureAsPdf
+//                        "jpg", "jpeg", "png", "webp" -> Icons.Filled.Image
+//                        else -> Icons.Filled.InsertDriveFile
+//                    },
+//                    contentDescription = null,
+//                    tint = when (document.fileType) {
+//                        "pdf" -> ErrorDark
+//                        else -> GradientStart
+//                    },
+//                )
             }
 
             Spacer(modifier = Modifier.width(12.dp))

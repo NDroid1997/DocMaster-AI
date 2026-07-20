@@ -24,6 +24,9 @@ class AppPreferences @Inject constructor(
         val IS_PREMIUM = booleanPreferencesKey("is_premium")
         val AUTO_ENHANCE = booleanPreferencesKey("auto_enhance")
         val GRID_VIEW = booleanPreferencesKey("grid_view")
+        val TRIAL_START_DATE = longPreferencesKey("trial_start_date")
+        val HAS_USED_TRIAL = booleanPreferencesKey("has_used_trial")
+        val IS_LOGGED_IN = booleanPreferencesKey("is_logged_in")
     }
 
     val darkMode: Flow<String> = context.dataStore.data.map { prefs ->
@@ -58,6 +61,18 @@ class AppPreferences @Inject constructor(
         prefs[GRID_VIEW] ?: true
     }
 
+    val trialStartDate: Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[TRIAL_START_DATE] ?: 0L
+    }
+
+    val hasUsedTrial: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[HAS_USED_TRIAL] ?: false
+    }
+
+    val isLoggedIn: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[IS_LOGGED_IN] ?: false
+    }
+
     suspend fun setDarkMode(mode: String) {
         context.dataStore.edit { it[DARK_MODE] = mode }
     }
@@ -88,5 +103,17 @@ class AppPreferences @Inject constructor(
 
     suspend fun setGridView(isGrid: Boolean) {
         context.dataStore.edit { it[GRID_VIEW] = isGrid }
+    }
+
+    suspend fun setTrialStartDate(timestamp: Long) {
+        context.dataStore.edit { it[TRIAL_START_DATE] = timestamp }
+    }
+
+    suspend fun setHasUsedTrial(value: Boolean) {
+        context.dataStore.edit { it[HAS_USED_TRIAL] = value }
+    }
+
+    suspend fun setLoggedIn(value: Boolean) {
+        context.dataStore.edit { it[IS_LOGGED_IN] = value }
     }
 }

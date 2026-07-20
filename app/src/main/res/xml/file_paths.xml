@@ -6,4 +6,5 @@
     <files-path name="pdf_output" path="pdf_output/" />
     <cache-path name="temp" path="scan_temp/" />
     <cache-path name="cache" path="." />
+    <cache-path name="docedit_sessions" path="docedit_sessions/" />
 </paths>

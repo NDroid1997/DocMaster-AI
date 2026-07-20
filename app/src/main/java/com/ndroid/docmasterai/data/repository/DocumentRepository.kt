@@ -82,6 +82,15 @@ class DocumentRepository @Inject constructor(
 
     suspend fun deletePage(id: String) = pageDao.deletePage(id)
 
+    suspend fun deletePagesByDocumentId(documentId: String) =
+        pageDao.deletePagesByDocumentId(documentId)
+
+    /** Atomically swap out all pages of a document for a freshly edited set. */
+    suspend fun replacePages(documentId: String, pages: List<PageEntity>) {
+        pageDao.deletePagesByDocumentId(documentId)
+        pageDao.insertPages(pages)
+    }
+
     // Recent files
     fun getRecentFiles(limit: Int = 20): Flow<List<RecentFileEntity>> =
         recentFileDao.getRecentFiles(limit)

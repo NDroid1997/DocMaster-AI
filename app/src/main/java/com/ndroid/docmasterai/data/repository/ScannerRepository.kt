@@ -10,6 +10,7 @@ import com.ndroid.docmasterai.data.model.ImageFilter
 import com.ndroid.docmasterai.data.model.ScannedPage
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -70,9 +71,9 @@ class ScannerRepository @Inject constructor(
             ImageFilter.BRIGHTNESS -> adjustBrightness(bitmap, 30f)
             ImageFilter.CONTRAST -> adjustContrast(bitmap, 1.5f)
         }
-        val outputFile = File(scanDir, "enhanced_${UUID.randomUUID()}.jpg")
+        val outputFile = File(scanDir, "enhanced_${UUID.randomUUID()}.png")
         FileOutputStream(outputFile).use { out ->
-            filtered.compress(Bitmap.CompressFormat.JPEG, 95, out)
+            filtered.compress(Bitmap.CompressFormat.PNG, 100, out)
         }
         if (filtered != bitmap) filtered.recycle()
         outputFile.absolutePath
@@ -195,7 +196,4 @@ class ScannerRepository @Inject constructor(
         Canvas(result).drawBitmap(src, 0f, 0f, paint)
         return result
     }
-
-    private fun kotlinx.coroutines.CoroutineDispatcher.asExecutor() =
-        java.util.concurrent.Executor { command -> command.run() }
 }

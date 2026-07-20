@@ -1,5 +1,6 @@
 package com.ndroid.docmasterai.ui.screens.scanner
 
+import android.graphics.Rect
 import androidx.camera.core.ImageCapture
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -20,10 +21,13 @@ import javax.inject.Inject
 data class ScannerUiState(
     val scannedPages: List<ScannedPage> = emptyList(),
     val isCapturing: Boolean = false,
+    val isSaving: Boolean = false,
     val isFlashOn: Boolean = false,
     val isBatchMode: Boolean = false,
     val documentId: String = UUID.randomUUID().toString(),
     val error: String? = null,
+    val scanCompleted: Boolean = false,
+    val detectedRect: Rect? = null,
 )
 
 @HiltViewModel
@@ -39,6 +43,11 @@ class ScannerViewModel @Inject constructor(
 
     fun setImageCapture(capture: ImageCapture) {
         imageCapture = capture
+        applyFlashMode()
+    }
+
+    fun onDocumentDetected(rect: Rect?) {
+        _uiState.update { it.copy(detectedRect = rect) }
     }
 
     fun captureImage() {
@@ -63,6 +72,10 @@ class ScannerViewModel @Inject constructor(
 
     fun toggleFlash() {
         _uiState.update { it.copy(isFlashOn = !it.isFlashOn) }
+        applyFlashMode()
+    }
+
+    private fun applyFlashMode() {
         imageCapture?.flashMode = if (_uiState.value.isFlashOn) {
             ImageCapture.FLASH_MODE_ON
         } else {
@@ -81,40 +94,51 @@ class ScannerViewModel @Inject constructor(
     }
 
     fun finishScanning() {
+        if (_uiState.value.isSaving) return
+        _uiState.update { it.copy(isSaving = true) }
+        
         viewModelScope.launch {
-            val state = _uiState.value
-            if (state.scannedPages.isNotEmpty()) {
-                val title = "Scan ${java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}"
-                
-                // Move images from temp cache to permanent storage
-                val permanentPaths = scannerRepository.saveScanToStorage(state.scannedPages, title)
-                
-                // Create and save PageEntities
-                val pageEntities = state.scannedPages.mapIndexed { index, scannedPage ->
-                    PageEntity(
-                        id = scannedPage.id,
-                        documentId = state.documentId,
-                        pageNumber = index + 1,
-                        imagePath = permanentPaths[index],
-                        filterApplied = "original"
+            try {
+                val state = _uiState.value
+                if (state.scannedPages.isNotEmpty()) {
+                    val title = "Scan ${java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}"
+                    
+                    // Move images from temp cache to permanent storage
+                    val permanentPaths = scannerRepository.saveScanToStorage(state.scannedPages, title)
+                    
+                    // Save DocumentEntity
+                    val doc = DocumentEntity(
+                        id = state.documentId,
+                        title = title,
+                        filePath = permanentPaths.first(),
+                        thumbnailPath = permanentPaths.first(),
+                        fileType = "jpg",
+                        pageCount = state.scannedPages.size,
+                        sourceType = "scan",
                     )
-                }
-                documentRepository.savePages(pageEntities)
+                    documentRepository.saveDocument(doc)
 
-                // Save DocumentEntity
-                val doc = DocumentEntity(
-                    id = state.documentId,
-                    title = title,
-                    filePath = permanentPaths.first(),
-                    thumbnailPath = permanentPaths.first(),
-                    fileType = "jpg",
-                    pageCount = state.scannedPages.size,
-                    sourceType = "scan",
-                )
-                documentRepository.saveDocument(doc)
-                
-                // Clean up temp files
-                scannerRepository.cleanTempFiles()
+                    // Create and save PageEntities
+                    val pageEntities = state.scannedPages.mapIndexed { index, scannedPage ->
+                        PageEntity(
+                            id = scannedPage.id,
+                            documentId = state.documentId,
+                            pageNumber = index + 1,
+                            imagePath = permanentPaths[index],
+                            filterApplied = "original",
+                        )
+                    }
+                    documentRepository.savePages(pageEntities)
+                    
+                    // Clean up temp files
+                    scannerRepository.cleanTempFiles()
+                    
+                    _uiState.update { it.copy(isSaving = false, scanCompleted = true) }
+                } else {
+                    _uiState.update { it.copy(isSaving = false) }
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isSaving = false, error = e.message) }
             }
         }
     }

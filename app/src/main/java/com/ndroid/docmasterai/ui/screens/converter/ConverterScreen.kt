@@ -44,9 +44,23 @@ val conversionTools = listOf(
 @Composable
 fun ConverterScreen(
     onNavigateBack: () -> Unit,
+    onConversionComplete: (String) -> Unit,
+    onNavigateToPremium: () -> Unit,
     viewModel: ConverterViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isPremium by viewModel.premiumManager.isPremium.collectAsState()
+    val trialStatus by viewModel.premiumManager.trialStatus.collectAsState()
+
+    val isFullAccess = remember(isPremium, trialStatus) {
+        isPremium || trialStatus is com.ndroid.docmasterai.premium.TrialStatus.Active
+    }
+
+    LaunchedEffect(uiState.resultPath) {
+        uiState.resultPath?.let {
+            onConversionComplete(it)
+        }
+    }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -87,14 +101,21 @@ fun ConverterScreen(
                 modifier = Modifier.weight(1f),
             ) {
                 items(conversionTools) { tool ->
+                    val isToolFree = tool.type == ConversionType.PDF_TO_IMAGE || tool.type == ConversionType.IMAGE_TO_PDF
+                    val isAvailable = isFullAccess || isToolFree
+                    
                     Card(
                         onClick = {
-                            viewModel.selectConversionType(tool.type)
-                            val mimeType = when (tool.type) {
-                                ConversionType.PDF_TO_IMAGE, ConversionType.PDF_TO_TEXT -> "application/pdf"
-                                else -> "image/*"
+                            if (isAvailable) {
+                                viewModel.selectConversionType(tool.type)
+                                val mimeType = when (tool.type) {
+                                    ConversionType.PDF_TO_IMAGE, ConversionType.PDF_TO_TEXT -> "application/pdf"
+                                    else -> "image/*"
+                                }
+                                filePickerLauncher.launch(mimeType)
+                            } else {
+                                onNavigateToPremium()
                             }
-                            filePickerLauncher.launch(mimeType)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -116,12 +137,22 @@ fun ConverterScreen(
                             contentAlignment = Alignment.Center,
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    tool.icon,
-                                    contentDescription = tool.type.displayName,
-                                    modifier = Modifier.size(32.dp),
-                                    tint = Color.White,
-                                )
+                                Box(contentAlignment = Alignment.TopEnd) {
+                                    Icon(
+                                        tool.icon,
+                                        contentDescription = tool.type.displayName,
+                                        modifier = Modifier.size(32.dp),
+                                        tint = Color.White,
+                                    )
+                                    if (!isAvailable) {
+                                        Icon(
+                                            Icons.Filled.Lock,
+                                            contentDescription = "Locked",
+                                            modifier = Modifier.size(14.dp).offset(x = 8.dp, y = (-8).dp),
+                                            tint = Color.White.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                }
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
                                     tool.type.displayName,
@@ -157,29 +188,54 @@ fun ConverterScreen(
                 }
             }
 
-            // Result
-            uiState.resultPath?.let { path ->
+            // Error
+            uiState.error?.let { error ->
                 Spacer(modifier = Modifier.height(16.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    ),
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Filled.CheckCircle, null, tint = Success, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Conversion Complete!", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(path.substringAfterLast("/"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        IconButton(onClick = { /* Share */ }) {
-                            Icon(Icons.Filled.Share, "Share")
-                        }
+                        Text(
+                            text = error,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
             }
+
+            // Result
+            // uiState.resultPath?.let { path ->
+            //     Spacer(modifier = Modifier.height(16.dp))
+            //     Card(
+            //         modifier = Modifier.fillMaxWidth(),
+            //         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+            //     ) {
+            //         Row(
+            //             modifier = Modifier.padding(16.dp),
+            //             verticalAlignment = Alignment.CenterVertically,
+            //         ) {
+            //             Icon(Icons.Filled.CheckCircle, null, tint = Success, modifier = Modifier.size(24.dp))
+            //             Spacer(modifier = Modifier.width(12.dp))
+            //             Column(modifier = Modifier.weight(1f)) {
+            //                 Text("Conversion Complete!", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            //                 Text(path.substringAfterLast("/"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            //             }
+            //             IconButton(onClick = { /* Share */ }) {
+            //                 Icon(Icons.Filled.Share, "Share")
+            //             }
+            //         }
+            //     }
+            // }
         }
     }
 }

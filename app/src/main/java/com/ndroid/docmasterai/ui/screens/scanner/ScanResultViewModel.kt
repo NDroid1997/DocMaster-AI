@@ -8,7 +8,6 @@ import com.ndroid.docmasterai.data.local.entity.PageEntity
 import com.ndroid.docmasterai.data.model.ImageFilter
 import com.ndroid.docmasterai.data.repository.DocumentRepository
 import com.ndroid.docmasterai.data.repository.ScannerRepository
-import com.ndroid.docmasterai.ui.navigation.Screen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,26 +26,25 @@ data class ScanResultUiState(
 
 @HiltViewModel
 class ScanResultViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
     private val documentRepository: DocumentRepository,
     private val scannerRepository: ScannerRepository
 ) : ViewModel() {
 
-    private val documentId: String = savedStateHandle["documentId"] ?: ""
+    private var documentId: String = ""
 
     private val _uiState = MutableStateFlow(ScanResultUiState())
     val uiState: StateFlow<ScanResultUiState> = _uiState.asStateFlow()
 
-    init {
-        if (documentId.isNotEmpty()) {
-            loadDocument()
-        }
+    fun setDocumentId(id: String) {
+        if (documentId == id || id.isEmpty()) return
+        documentId = id
+        loadDocument()
     }
 
     private fun loadDocument() {
         viewModelScope.launch {
-            val doc = documentRepository.getDocumentById(documentId)
             documentRepository.getPagesByDocumentId(documentId).collect { pages ->
+                val doc = documentRepository.getDocumentById(documentId)
                 _uiState.update { 
                     it.copy(
                         document = doc, 

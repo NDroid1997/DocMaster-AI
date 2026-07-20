@@ -18,7 +18,7 @@ import javax.inject.Singleton
 @Singleton
 class PremiumManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val preferences: AppPreferences,
+    val preferences: AppPreferences,
 ) : PurchasesUpdatedListener {
 
     companion object {
@@ -32,12 +32,19 @@ class PremiumManager @Inject constructor(
     private val _isPremium = MutableStateFlow(false)
     val isPremium: StateFlow<Boolean> = _isPremium.asStateFlow()
 
+    private val _trialStatus = MutableStateFlow<TrialStatus>(TrialStatus.NotStarted)
+    val trialStatus: StateFlow<TrialStatus> = _trialStatus.asStateFlow()
+
     private val _availableProducts = MutableStateFlow<List<ProductDetails>>(emptyList())
     val availableProducts: StateFlow<List<ProductDetails>> = _availableProducts.asStateFlow()
 
     private var billingClient: BillingClient = BillingClient.newBuilder(context)
         .setListener(this)
-        .enablePendingPurchases()
+        .enablePendingPurchases(
+            PendingPurchasesParams.newBuilder()
+                .enableOneTimeProducts()
+                .build()
+        )
         .build()
 
     init {
@@ -45,6 +52,25 @@ class PremiumManager @Inject constructor(
         scope.launch {
             preferences.isPremium.collect { premium ->
                 _isPremium.value = premium
+            }
+        }
+        scope.launch {
+            preferences.trialStartDate.collect { startDate ->
+                if (startDate == 0L) {
+                    preferences.hasUsedTrial.collect { hasUsed ->
+                        _trialStatus.value = if (hasUsed) TrialStatus.Expired else TrialStatus.NotStarted
+                    }
+                } else {
+                    val currentTime = System.currentTimeMillis()
+                    val sevenDaysInMillis = 7 * 24 * 60 * 60 * 1000L
+                    if (currentTime - startDate < sevenDaysInMillis) {
+                        val remainingDays = 7 - ((currentTime - startDate) / (24 * 60 * 60 * 1000L)).toInt()
+                        _trialStatus.value = TrialStatus.Active(remainingDays)
+                    } else {
+                        _trialStatus.value = TrialStatus.Expired
+                        preferences.setHasUsedTrial(true)
+                    }
+                }
             }
         }
     }
@@ -85,9 +111,9 @@ class PremiumManager @Inject constructor(
             .setProductList(productList)
             .build()
 
-        billingClient.queryProductDetailsAsync(params) { result, productDetailsList ->
+        billingClient.queryProductDetailsAsync(params) { result, queryResult ->
             if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                _availableProducts.value = productDetailsList
+                _availableProducts.value = queryResult.productDetailsList
             }
         }
     }
@@ -188,18 +214,58 @@ class PremiumManager @Inject constructor(
     }
 
     fun isFeatureAvailable(feature: PremiumFeature): Boolean {
-        return _isPremium.value || feature.isFreeFeature
+        return _isPremium.value || (_trialStatus.value is TrialStatus.Active) || feature.isFreeFeature
     }
+
+    fun isSubFeatureAvailable(parentFeature: PremiumFeature, subFeature: String): Boolean {
+        if (_isPremium.value || (_trialStatus.value is TrialStatus.Active)) return true
+        
+        return when (parentFeature) {
+            PremiumFeature.ADVANCED_PDF_TOOLS -> {
+                subFeature in listOf("merge", "split")
+            }
+            PremiumFeature.BASIC_CONVERT -> {
+                subFeature in listOf("image_to_pdf", "pdf_to_image")
+            }
+            PremiumFeature.EDITOR -> {
+                subFeature in listOf("crop", "rotate", "filter")
+            }
+            PremiumFeature.PREVIEW_EXPORT -> {
+                subFeature in listOf("view", "share")
+            }
+            else -> false
+        }
+    }
+
+    fun startTrial() {
+        scope.launch {
+            val hasUsed = false // We should check actual preference value here if not already handled by flow
+            if (_trialStatus.value == TrialStatus.NotStarted) {
+                val startTime = System.currentTimeMillis()
+                preferences.setTrialStartDate(startTime)
+                preferences.setHasUsedTrial(true)
+                _trialStatus.value = TrialStatus.Active(7)
+            }
+        }
+    }
+}
+
+sealed class TrialStatus {
+    object NotStarted : TrialStatus()
+    data class Active(val daysRemaining: Int) : TrialStatus()
+    object Expired : TrialStatus()
 }
 
 enum class PremiumFeature(val isFreeFeature: Boolean) {
     BASIC_SCAN(true),
     BASIC_OCR(true),           // Limited to 5/day in free
-    BASIC_CONVERT(true),
+    BASIC_CONVERT(false),      // Granular
     UNLIMITED_OCR(false),
     BATCH_CONVERSION(false),
-    ADVANCED_PDF_TOOLS(false),
+    ADVANCED_PDF_TOOLS(false), // Granular
     AI_ENHANCEMENT(false),
     NO_ADS(false),
     CLOUD_BACKUP(false),
+    EDITOR(false),             // Granular
+    PREVIEW_EXPORT(false),     // Granular
 }

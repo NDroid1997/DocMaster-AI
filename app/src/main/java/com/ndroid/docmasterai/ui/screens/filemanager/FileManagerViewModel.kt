@@ -1,5 +1,6 @@
 package com.ndroid.docmasterai.ui.screens.filemanager
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ndroid.docmasterai.data.local.entity.DocumentEntity
@@ -8,6 +9,7 @@ import com.ndroid.docmasterai.data.repository.FileManagerRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 data class FileManagerUiState(
@@ -80,4 +82,25 @@ class FileManagerViewModel @Inject constructor(
     fun createFolder(name: String) {
         viewModelScope.launch { fileManagerRepository.createFolder(name) }
     }
+
+    /**
+     * Loads the page images for [doc] and delivers them (with the document id) so the
+     * caller can open them in the DocumentEditor. Falls back to the document's own
+     * file if it has no separate page records.
+     */
+//    fun prepareForEditing(
+//        doc: DocumentEntity,
+//        onReady: (documentId: String, uris: List<Uri>) -> Unit,
+//    ) {
+//        viewModelScope.launch {
+//            val pages = documentRepository.getPagesByDocumentId(doc.id).first()
+//            val uris = if (pages.isNotEmpty()) {
+//                pages.sortedBy { it.pageNumber }
+//                    .map { Uri.fromFile(File(it.enhancedImagePath ?: it.imagePath)) }
+//            } else {
+//                listOf(Uri.fromFile(File(doc.filePath)))
+//            }
+//            onReady(doc.id, uris)
+//        }
+//    }
 }

@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt)
@@ -9,11 +8,11 @@ plugins {
 
 android {
     namespace = "com.ndroid.docmasterai"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig {
         applicationId = "com.ndroid.docmasterai"
         minSdk = 29
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -43,7 +42,15 @@ android {
             excludes += "/META-INF/LICENSE.txt"
             excludes += "/META-INF/NOTICE"
             excludes += "/META-INF/NOTICE.txt"
+            excludes += "/META-INF/NOTICE.md"
+            excludes += "/META-INF/LICENSE.md"
             excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            pickFirsts += "/META-INF/NOTICE.md"
+            pickFirsts += "/META-INF/LICENSE.md"
+        }
+        jniLibs {
+            // Ship native libs uncompressed + page-aligned for 16 KB-page devices.
+            useLegacyPackaging = false
         }
     }
 }
@@ -52,19 +59,20 @@ kotlin {
     jvmToolchain(17)
 }
 
+hilt {
+    enableAggregatingTask = false
+}
+
 dependencies {
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
     androidTestImplementation(composeBom)
-
-    // Core
-    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.ktx)    // Core
     implementation(libs.androidx.activity.compose)
 
     // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     // Compose UI
     implementation(libs.androidx.compose.ui)
@@ -100,9 +108,9 @@ dependencies {
 
     // ML Kit OCR
     implementation(libs.mlkit.text.recognition)
+    implementation(libs.mlkit.objdetection)
 
     // Image Loading
-    implementation(libs.coil.compose)
 
     // DataStore
     implementation(libs.datastore.preferences)
@@ -125,6 +133,9 @@ dependencies {
 
     // DocumentFile
     implementation(libs.documentfile)
+    implementation(libs.play.services.mlkit.document.scanner)
+    implementation(libs.coil.kt.coil.compose)
+
 
     // Testing
     testImplementation(libs.junit)
@@ -134,4 +145,13 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.espresso.core)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    implementation(project(":document-editor"))
+    implementation(project(":opencv"))
+
+//    pdfbox
+    implementation(libs.pdfbox.android) {
+        exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
+        exclude(group = "org.bouncycastle", module = "bcpkix-jdk15to18")
+        exclude(group = "org.bouncycastle", module = "bcutil-jdk15to18")
+    }
 }

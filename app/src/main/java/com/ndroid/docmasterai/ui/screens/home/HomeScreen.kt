@@ -1,13 +1,15 @@
 package com.ndroid.docmasterai.ui.screens.home
 
+import android.graphics.drawable.Icon
+import android.net.Uri
+import android.util.Log
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,17 +18,21 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.ndroid.docmasterai.data.local.entity.DocumentEntity
 import com.ndroid.docmasterai.ui.theme.*
+import com.ndroid.docmasterai.utils.GlobalViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -39,13 +45,22 @@ fun HomeScreen(
     onNavigateToPdfTools: () -> Unit,
     onNavigateToResize: () -> Unit,
     onNavigateToFileManager: () -> Unit,
+    onNavigateToPremium: () -> Unit,
+    onDocItemClick:(documentId: String, images: List<Uri>, pdf: Uri?) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val recentDocs by viewModel.recentDocuments.collectAsState()
     val favoriteDocs by viewModel.favoriteDocuments.collectAsState()
     val docCount by viewModel.documentCount.collectAsState()
     val totalStorage by viewModel.totalStorage.collectAsState()
-    val isPremium by viewModel.isPremium.collectAsState()
+    val isPremium by viewModel.premiumManager.isPremium.collectAsState()
+    val trialStatus by viewModel.premiumManager.trialStatus.collectAsState()
+
+    var isFeatureAvailable by remember { mutableStateOf(true) }
+// val isFeatureAvailable = remember(isPremium, trialStatus) {
+//        isPremium || trialStatus is com.ndroid.docmasterai.premium.TrialStatus.Active
+//    }
+
 
     Column(
         modifier = Modifier
@@ -120,8 +135,9 @@ fun HomeScreen(
                 icon = Icons.Filled.SwapHoriz,
                 title = "Convert",
                 gradientColors = listOf(CardGradient3Start, CardGradient3End),
-                onClick = onNavigateToConverter,
+                onClick = if (isFeatureAvailable) onNavigateToConverter else onNavigateToPremium,
                 modifier = Modifier.weight(1f),
+                isLocked = !isFeatureAvailable
             )
         }
 
@@ -137,8 +153,9 @@ fun HomeScreen(
                 icon = Icons.Filled.PictureAsPdf,
                 title = "PDF Tools",
                 gradientColors = listOf(CardGradient4Start, CardGradient4End),
-                onClick = onNavigateToPdfTools,
+                onClick = if (isFeatureAvailable) onNavigateToPdfTools else onNavigateToPremium,
                 modifier = Modifier.weight(1f),
+                isLocked = !isFeatureAvailable
             )
             QuickActionCard(
                 icon = Icons.Filled.PhotoSizeSelectLarge,
@@ -160,7 +177,15 @@ fun HomeScreen(
 
         // Premium Banner
         if (!isPremium) {
-            PremiumBanner(modifier = Modifier.padding(horizontal = 16.dp))
+            val trialText = when (val status = trialStatus) {
+                is com.ndroid.docmasterai.premium.TrialStatus.Active -> "Trial ends in ${status.daysRemaining} days"
+                else -> "Unlock all tools & features"
+            }
+            PremiumBanner(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                description = trialText,
+                onClick = onNavigateToPremium
+            )
             Spacer(modifier = Modifier.height(24.dp))
         }
 
@@ -193,6 +218,7 @@ fun HomeScreen(
                     DocumentCard(
                         document = doc,
                         onFavoriteToggle = { viewModel.toggleFavorite(doc) },
+                        onDocItemClick = onDocItemClick
                     )
                 }
             }
@@ -218,6 +244,7 @@ fun HomeScreen(
                     DocumentCard(
                         document = doc,
                         onFavoriteToggle = { viewModel.toggleFavorite(doc) },
+                        onDocItemClick = onDocItemClick
                     )
                 }
             }
@@ -245,6 +272,7 @@ private fun QuickActionCard(
     gradientColors: List<Color>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isLocked: Boolean = false,
 ) {
     Card(
         onClick = onClick,
@@ -270,12 +298,22 @@ private fun QuickActionCard(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    modifier = Modifier.size(32.dp),
-                    tint = Color.White,
-                )
+                Box(contentAlignment = Alignment.TopEnd) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = title,
+                        modifier = Modifier.size(32.dp),
+                        tint = Color.White,
+                    )
+                    if (isLocked) {
+                        Icon(
+                            Icons.Filled.Lock,
+                            contentDescription = "Locked",
+                            modifier = Modifier.size(14.dp).offset(x = 8.dp, y = (-8).dp),
+                            tint = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = title,
@@ -292,14 +330,21 @@ private fun QuickActionCard(
 private fun DocumentCard(
     document: DocumentEntity,
     onFavoriteToggle: () -> Unit,
+    onDocItemClick:(documentId: String, images: List<Uri>, pdf: Uri?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+
+    val globalViewModel = hiltViewModel<GlobalViewModel>()
+
     Card(
         modifier = modifier.width(160.dp),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ),
+        onClick = {
+            globalViewModel.prepareForEditing(document, onDocItemClick)
+        }
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -315,16 +360,34 @@ private fun DocumentCard(
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    imageVector = when (document.fileType) {
-                        "pdf" -> Icons.Filled.PictureAsPdf
-                        "jpg", "jpeg", "png", "webp" -> Icons.Filled.Image
-                        else -> Icons.Filled.InsertDriveFile
-                    },
-                    contentDescription = null,
-                    modifier = Modifier.size(36.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (document.thumbnailPath != null) {
+                    AsyncImage(
+                        model = java.io.File(document.thumbnailPath),
+                        contentDescription = document.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Icon(
+                        imageVector = when (document.fileType) {
+                            "pdf" -> Icons.Filled.PictureAsPdf
+                            "jpg", "jpeg", "png", "webp" -> Icons.Filled.Image
+                            else -> Icons.Filled.InsertDriveFile
+                        },
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+//                Icon(
+//                    imageVector = when (document.fileType) {
+//                        "pdf" -> Icons.Filled.PictureAsPdf
+//                        "jpg", "jpeg", "png", "webp" -> Icons.Filled.Image
+//                        else -> Icons.Filled.InsertDriveFile
+//                    },
+//                    contentDescription = null,
+//                    modifier = Modifier.size(36.dp),
+//                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+//                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -367,7 +430,11 @@ private fun DocumentCard(
 }
 
 @Composable
-private fun PremiumBanner(modifier: Modifier = Modifier) {
+private fun PremiumBanner(
+    modifier: Modifier = Modifier,
+    description: String = "Unlimited OCR, batch conversion, advanced PDF tools & more",
+    onClick: () -> Unit,
+) {
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
@@ -398,14 +465,14 @@ private fun PremiumBanner(modifier: Modifier = Modifier) {
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Unlimited OCR, batch conversion, advanced PDF tools & more",
+                        text = description,
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.85f),
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 FilledTonalButton(
-                    onClick = { /* Navigate to premium */ },
+                    onClick = onClick,
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = Color.White.copy(alpha = 0.2f),
                         contentColor = Color.White,
@@ -457,6 +524,9 @@ private fun EmptyHomeState(
         }
     }
 }
+
+
+
 
 private fun formatDate(timestamp: Long): String {
     val sdf = SimpleDateFormat("MMM dd", Locale.getDefault())

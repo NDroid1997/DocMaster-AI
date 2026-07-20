@@ -10,4 +10,5 @@ class SplashViewModel @Inject constructor(
     preferences: AppPreferences
 ) : ViewModel() {
     val isFirstLaunch = preferences.isFirstLaunch
+    val isLoggedIn = preferences.isLoggedIn
 }

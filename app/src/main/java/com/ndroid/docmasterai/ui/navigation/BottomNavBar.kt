@@ -13,9 +13,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.ndroid.docmasterai.ui.screens.home.HomeViewModel
 
 data class NavBarItem(
     val route: Screen,
@@ -36,9 +38,11 @@ val bottomNavItems = listOf(
 fun BottomNavBar(
     navController: NavController,
     modifier: Modifier = Modifier,
+    onScanClick:() -> Unit
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val viewModel = hiltViewModel<HomeViewModel>()
 
     NavigationBar(
         modifier = modifier,
@@ -51,6 +55,10 @@ fun BottomNavBar(
             NavigationBarItem(
                 selected = selected,
                 onClick = {
+                    if(item.route == Screen.Scanner){
+                        onScanClick()
+                        return@NavigationBarItem
+                    }
                     if (!selected) {
                         navController.navigate(item.route) {
                             popUpTo(Screen.Home) { saveState = true }

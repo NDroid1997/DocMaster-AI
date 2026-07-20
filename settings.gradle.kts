@@ -22,7 +22,13 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
-        maven { url = uri("https://repo.itext.com/releases") }
+        maven {
+            url = uri("https://repo.itext.com/releases")
+            content {
+                includeGroup("com.itextpdf")
+            }
+        }
+
     }
 }
 
@@ -32,3 +38,6 @@ plugins {
 
 rootProject.name = "DocMaster AI"
 include(":app")
+include(":document-editor")
+include(":opencv")
+project(":opencv").projectDir = File(rootDir, "OpenCV-android-sdk/sdk")

@@ -14,11 +14,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.ndroid.docmasterai.data.model.ImageFilter
 import com.ndroid.docmasterai.ui.theme.GradientStart
 import java.io.File
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,6 +29,11 @@ fun ScanResultScreen(
     viewModel: ScanResultViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    
+    LaunchedEffect(documentId) {
+        viewModel.setDocumentId(documentId)
+    }
+    
     var selectedFilter by remember { mutableStateOf(ImageFilter.ORIGINAL) }
     var brightness by remember { mutableFloatStateOf(0f) }
     var contrast by remember { mutableFloatStateOf(1f) }

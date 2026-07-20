@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +28,30 @@ fun ResizeScreen(
     viewModel: ResizeViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Auto-navigate back on success
+    LaunchedEffect(uiState.isSuccess) {
+        if (uiState.isSuccess) {
+            val fileName = uiState.savedPath?.substringAfterLast("/") ?: "Image"
+            snackbarHostState.showSnackbar(
+                message = "Image saved to Downloads/DocMasterAi/$fileName",
+                duration = SnackbarDuration.Long
+            )
+            viewModel.clearSuccess()
+            onNavigateBack()
+        }
+    }
+
+    // Show error snackbar
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let { errorMsg ->
+            snackbarHostState.showSnackbar(
+                message = "Error: $errorMsg",
+                duration = SnackbarDuration.Long
+            )
+        }
+    }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -44,7 +69,8 @@ fun ResizeScreen(
                     }
                 },
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
             modifier = Modifier

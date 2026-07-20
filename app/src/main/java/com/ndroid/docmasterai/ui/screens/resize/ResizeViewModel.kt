@@ -1,6 +1,9 @@
 package com.ndroid.docmasterai.ui.screens.resize
 
+import android.content.Context
 import android.net.Uri
+import androidx.lifecycle.AndroidViewModel
+import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ndroid.docmasterai.data.model.ResizeMode
@@ -12,7 +15,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import android.os.Environment
 import javax.inject.Inject
+
+import com.ndroid.docmasterai.util.StoragePaths
+import java.io.File
 
 data class ResizeUiState(
     val selectedImageUri: Uri? = null,
@@ -25,13 +34,18 @@ data class ResizeUiState(
     val outputFormat: String = "jpg",
     val isProcessing: Boolean = false,
     val resultPath: String? = null,
+    val savedPath: String? = null,
     val error: String? = null,
+    val isSuccess: Boolean = false,
 )
 
 @HiltViewModel
 class ResizeViewModel @Inject constructor(
+    application: Application,
     private val conversionRepository: ConversionRepository,
-) : ViewModel() {
+) : AndroidViewModel(application) {
+
+    private val context: Context = application
 
     private val _uiState = MutableStateFlow(ResizeUiState())
     val uiState: StateFlow<ResizeUiState> = _uiState.asStateFlow()
@@ -47,7 +61,7 @@ class ResizeViewModel @Inject constructor(
 
     fun resize() {
         val state = _uiState.value
-        val imagePath = state.selectedImageUri?.path ?: return
+        val imagePath = state.selectedImageUri?.toString() ?: return
         _uiState.update { it.copy(isProcessing = true, error = null) }
 
         viewModelScope.launch {
@@ -62,10 +76,47 @@ class ResizeViewModel @Inject constructor(
                     outputFormat = state.outputFormat,
                 )
                 val result = conversionRepository.resizeImage(imagePath, options)
-                _uiState.update { it.copy(isProcessing = false, resultPath = result) }
+
+                // Copy resized image to Downloads storage path
+                val savedPath = copyToDownloads(result, state.outputFormat)
+                _uiState.update {
+                    it.copy(
+                        isProcessing = false,
+                        resultPath = result,
+                        savedPath = savedPath,
+                        isSuccess = true
+                    )
+                }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isProcessing = false, error = e.message) }
             }
         }
+    }
+
+    private suspend fun copyToDownloads(sourceFilePath: String, format: String): String {
+        return withContext(Dispatchers.IO) {
+            try {
+                val sourceFile = File(sourceFilePath)
+                if (!sourceFile.exists()) return@withContext sourceFilePath
+
+                val fileName = "resized_${System.currentTimeMillis()}.$format"
+                val downloadsPath = StoragePaths.downloadsRelativePath()
+                val downloadsDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), StoragePaths.DOWNLOAD_SUBDIR)
+
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+
+                val destFile = File(downloadsDir, fileName)
+                sourceFile.copyTo(destFile, overwrite = true)
+
+                destFile.absolutePath
+            } catch (e: Exception) {
+                // If copy fails, return original path
+                sourceFilePath
+            }
+        }
+    }
+
+    fun clearSuccess() {
+        _uiState.update { it.copy(isSuccess = false, savedPath = null) }
     }
 }

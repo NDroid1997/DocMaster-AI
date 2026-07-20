@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ndroid.docmasterai.data.model.ConversionType
 import com.ndroid.docmasterai.data.repository.ConversionRepository
+import com.ndroid.docmasterai.premium.PremiumManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +24,7 @@ data class ConverterUiState(
 @HiltViewModel
 class ConverterViewModel @Inject constructor(
     private val conversionRepository: ConversionRepository,
+    val premiumManager: PremiumManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ConverterUiState())
@@ -41,22 +43,36 @@ class ConverterViewModel @Inject constructor(
                 val result = when (type) {
                     ConversionType.IMAGE_TO_PDF -> {
                         conversionRepository.convertImageToPdf(
-                            listOf(uri.path ?: ""), "converted"
+                            listOf(uri.toString()), "converted"
                         )
                     }
                     ConversionType.PNG_TO_JPG -> {
                         conversionRepository.convertImageFormat(
-                            uri.path ?: "",
+                            uri.toString(),
                             android.graphics.Bitmap.CompressFormat.JPEG,
                         )
                     }
                     ConversionType.JPG_TO_PNG -> {
                         conversionRepository.convertImageFormat(
-                            uri.path ?: "",
+                            uri.toString(),
                             android.graphics.Bitmap.CompressFormat.PNG,
                         )
                     }
-                    else -> uri.path ?: ""
+                    ConversionType.WEBP_TO_JPG -> {
+                        conversionRepository.convertImageFormat(
+                            uri.toString(),
+                            android.graphics.Bitmap.CompressFormat.JPEG,
+                        )
+                    }
+                    ConversionType.PDF_TO_IMAGE -> {
+                        conversionRepository.convertPdfToImages(uri.toString()).firstOrNull() ?: ""
+                    }
+                    ConversionType.PDF_TO_TEXT -> {
+                        conversionRepository.convertPdfToText(uri.toString())
+                    }
+                    ConversionType.IMAGE_TO_TEXT -> {
+                        conversionRepository.convertImageToText(uri.toString())
+                    }
                 }
                 _uiState.update { it.copy(isConverting = false, resultPath = result) }
             } catch (e: Exception) {

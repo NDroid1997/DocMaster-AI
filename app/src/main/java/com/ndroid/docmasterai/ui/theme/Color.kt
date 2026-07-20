@@ -75,3 +75,5 @@ val CardGradient4Start = Color(0xFF4ADE80)
 val CardGradient4End = Color(0xFF00D9FF)
 val CardGradient5Start = Color(0xFFFBBF24)
 val CardGradient5End = Color(0xFFFF6B9D)
+
+val LogoBackground = Color(0xFF060030)
