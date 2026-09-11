@@ -4,6 +4,9 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+//    alias(libs.plugins.google.services)
+//    alias(libs.plugins.crashlytics)
+//    alias(libs.plugins.perf)
 }
 
 android {
@@ -136,6 +139,13 @@ dependencies {
     implementation(libs.play.services.mlkit.document.scanner)
     implementation(libs.coil.kt.coil.compose)
 
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.crashlytics)
+    implementation(libs.firebase.perf)
+    implementation(libs.play.services.auth)
 
     // Testing
     testImplementation(libs.junit)
