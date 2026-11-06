@@ -1,16 +1,13 @@
 package com.ndroid.docmasterai
 
 import android.app.Activity
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.provider.OpenableColumns
-import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedVisibility
@@ -21,7 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -36,9 +35,7 @@ import com.ndroid.docmasterai.ui.theme.DocMasterTheme
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
-import kotlin.io.path.exists
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -83,12 +80,21 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         handleIntent(intent)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("editingDocumentId", editingDocumentId)
+        super.onSaveInstanceState(outState)
     }
 
     private fun handleIntent(intent: Intent) {
         val action = intent.action
         val type = intent.type
+        if (action == Intent.ACTION_VIEW || action == Intent.ACTION_SEND || action == Intent.ACTION_SEND_MULTIPLE) {
+            editingDocumentId = null
+        }
         
         when (action) {
             Intent.ACTION_VIEW -> {
@@ -142,10 +148,18 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        editingDocumentId = savedInstanceState?.getString("editingDocumentId")
         enableEdgeToEdge()
         PDFBoxResourceLoader.init(this)
-        
-        handleIntent(intent)
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                mainViewModel.messages.collect { message ->
+                    Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        if (savedInstanceState == null) handleIntent(intent)
 
         setContent {
             DocMasterTheme {

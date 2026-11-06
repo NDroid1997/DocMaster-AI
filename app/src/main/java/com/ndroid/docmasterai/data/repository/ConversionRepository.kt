@@ -7,7 +7,6 @@ import android.net.Uri
 import android.graphics.pdf.PdfDocument
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
-import com.docedit.sdk.ocr.OcrProcessor
 import com.ndroid.docmasterai.data.remote.OpenAiService
 import com.ndroid.docmasterai.data.local.dao.ConversionHistoryDao
 import com.ndroid.docmasterai.data.local.entity.DocumentEntity
@@ -44,7 +43,8 @@ class ConversionRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val conversionHistoryDao: ConversionHistoryDao,
     private val documentRepository: DocumentRepository,
-    private val openAiService: OpenAiService
+    private val openAiService: OpenAiService,
+    private val ocrRepository: OcrRepository
 ) {
     private val outputDir: File
         get() = File(context.filesDir, "conversions").also { it.mkdirs() }
@@ -160,8 +160,9 @@ class ConversionRepository @Inject constructor(
     }
 
     suspend fun convertImageToText(imagePath: String): String = withContext(Dispatchers.IO) {
-        val uri = try { Uri.parse(imagePath) } catch (e: Exception) { Uri.fromFile(File(imagePath)) }
-        val rawText = OcrProcessor.extractText(context, uri)
+        val parsedUri = Uri.parse(imagePath)
+        val uri = if (parsedUri.scheme == null) Uri.fromFile(File(imagePath)) else parsedUri
+        val rawText = ocrRepository.extractTextFromUri(uri).text
         if (rawText.isBlank()){
             throw IllegalArgumentException("No text could be found in the selected image. Please try an image with clearer text.")
         }
