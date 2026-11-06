@@ -13,3 +13,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+**/build/
+opencv-*.zip
+OpenCV-android-sdk/
